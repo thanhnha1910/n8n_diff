@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DiffChecker - Document Comparison</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        :root {
+            --bg-color: #f8f9fa;
+            --surface-color: #ffffff;
+            --border-color: #e5e7eb;
+            --text-primary: #1f2937;
+            --text-secondary: #6b7280;
+            --color-red: #fef2f2;
+            --color-red-text: #991b1b;
+            --color-green: #f0fdf4;
+            --color-green-text: #166534;
+            --color-blue: #667eea;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            padding: 40px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .main-container {
+            width: 100%;
+            max-width: 1200px;
+            background: var(--surface-color);
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.07);
+            overflow: hidden;
+        }
+        .header {
+            padding: 20px 30px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            color: var(--text-primary);
+        }
+        .content-area {
+            display: flex;
+            min-height: 500px;
+        }
+        .diff-side {
+            flex: 1;
+            padding: 20px;
+            border-right: 1px solid var(--border-color);
+            position: relative;
+        }
+        .diff-side:last-child {
+            border-right: none;
+        }
+        .upload-zone {
+            border: 2px dashed var(--border-color);
+            border-radius: 12px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .upload-zone.drag-over {
+            border-color: var(--color-blue);
+            background-color: #f0f2ff;
+        }
+        .upload-zone p {
+            color: var(--text-secondary);
+        }
+        .upload-zone strong {
+            color: var(--color-blue);
+        }
+        .file-content-view {
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-all;
+            height: 100%;
+            overflow-y: auto;
+        }
+        .line-container {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 4px; /* Spacing between lines */
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+        
+        /* Line numbers */
+        .line-number {
+            display: inline-block;
+            width: 40px;
+            padding: 2px 8px;
+            background-color: #f3f4f6;
+            color: var(--text-secondary);
+            font-size: 12px;
+            text-align: right;
+            border-right: 1px solid var(--border-color);
+            margin-right: 8px;
+            user-select: none;
+            flex-shrink: 0;
+        }
+        
+        .line { 
+            padding: 2px 8px; 
+            display: block; 
+            flex: 1;
+            min-height: 20px;
+        }
+        .line.added { background-color: var(--color-green); }
+        .line.deleted { background-color: var(--color-red); }
+        .line.modified-old { background-color: var(--color-red); }
+        .line.modified-new { background-color: var(--color-green); }
+        .line.empty { background-color: #f9fafb; min-height: 20px; }
+        
+        /* Enhanced inline diff highlighting */
+        .inline-deleted {
+            background-color: #f5c6cb;
+            color: #721c24;
+            border: 2px solid #dc3545;
+            border-radius: 4px;
+            padding: 2px 4px;
+            margin: 0 1px;
+            box-shadow: 0 2px 4px rgba(220, 53, 69, 0.2);
+            transition: all 0.3s ease;
+            font-weight: 600;
+        }
+        
+        .inline-deleted:hover {
+            background-color: #f1b0b7;
+            box-shadow: 0 4px 8px rgba(220, 53, 69, 0.3);
+            transform: translateY(-1px);
+        }
+        
+        .inline-added {
+            background-color: #c3e6cb;
+            color: #155724;
+            border: 2px solid #28a745;
+            border-radius: 4px;
+            padding: 2px 4px;
+            margin: 0 1px;
+            box-shadow: 0 2px 4px rgba(40, 167, 69, 0.2);
+            transition: all 0.3s ease;
+            font-weight: 600;
+        }
+        
+        .inline-added:hover {
+            background-color: #b8dabd;
+            box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
+            transform: translateY(-1px);
+        }
+        
+        .inline-modified {
+            background-color: #ffeaa7;
+            color: #856404;
+            border: 2px solid #ffc107;
+            border-radius: 4px;
+            padding: 2px 4px;
+            margin: 0 1px;
+            box-shadow: 0 2px 4px rgba(255, 193, 7, 0.2);
+            transition: all 0.3s ease;
+            font-weight: 600;
+        }
+        
+        .inline-modified:hover {
+            background-color: #fdcb6e;
+            box-shadow: 0 4px 8px rgba(255, 193, 7, 0.3);
+            transform: translateY(-1px);
+        }
+        
+        /* Border highlighting for differences */
+        .inline-deleted.needs-border {
+            border: 3px solid #dc2626;
+            box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.3);
+        }
+        
+        .inline-added.needs-border {
+            border: 3px solid #16a34a;
+            box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.3);
+        }
+        
+        /* Enhanced animations for newly highlighted differences */
+        @keyframes highlightPulse {
+            0% { 
+                box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.7);
+                transform: scale(1);
+            }
+            50% { 
+                box-shadow: 0 0 0 8px rgba(255, 193, 7, 0.3);
+                transform: scale(1.05);
+            }
+            100% { 
+                box-shadow: 0 0 0 0 rgba(255, 193, 7, 0);
+                transform: scale(1);
+            }
+        }
+        
+        @keyframes slideInFromLeft {
+            0% { 
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            100% { 
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        @keyframes slideInFromRight {
+            0% { 
+                opacity: 0;
+                transform: translateX(20px);
+            }
+            100% { 
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        .inline-added.new-highlight {
+            animation: highlightPulse 1s ease-out, slideInFromRight 0.5s ease-out;
+        }
+        
+        .inline-deleted.new-highlight {
+            animation: highlightPulse 1s ease-out, slideInFromLeft 0.5s ease-out;
+        }
+        
+        .inline-modified.new-highlight {
+            animation: highlightPulse 1s ease-out;
+        }
+        
+        /* Smooth fade-in for results */
+        .results-container {
+            animation: fadeIn 0.6s ease-out;
+        }
+        
+        @keyframes fadeIn {
+            0% { 
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            100% { 
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .footer {
+            padding: 20px 30px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: flex-end;
+        }
+        .btn {
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .btn-primary {
+            background-color: var(--color-blue);
+            color: white;
+        }
+        .btn-primary:disabled {
+            background-color: #9ca3af;
+            cursor: not-allowed;
+        }
+        .loading-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(255, 255, 255, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+        .spinner {
+            width: 40px; height: 40px;
+            border: 4px solid #e5e7eb;
+            border-top: 4px solid var(--color-blue);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <div class="main-container" id="main-container">
+        <div class="header">
+            <h1>DiffChecker 1.1</h1>
+        </div>
+        <div class="content-area">
+            <div class="diff-side" id="side1">
+                <div class="upload-zone" id="upload-zone-1">
+                    <p>Drag and drop file 1 or <strong>click to select</strong></p>
+                    <p style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 8px;">Supported: PDF, DOCX, TXT</p>
+                    <input type="file" id="file-input-1" accept=".pdf,.docx,.txt" hidden>
+                </div>
+            </div>
+            <div class="diff-side" id="side2">
+                <div class="upload-zone" id="upload-zone-2">
+                    <p>Drag and drop file 2 or <strong>click to select</strong></p>
+                    <p style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 8px;">Supported: PDF, DOCX, TXT</p>
+                    <input type="file" id="file-input-2" accept=".pdf,.docx,.txt" hidden>
+                </div>
+            </div>
+        </div>
+        <div class="footer">
+            <button class="btn btn-primary" id="run-task-btn" disabled>Run Task</button>
+        </div>
+    </div>
+
+    <script>
+
+        const N8N_WEBHOOK_URL = 'https://qtn1910.app.n8n.cloud/webhook/file-diff';
+
+      
+        const fileInput1 = document.getElementById('file-input-1');
+        const fileInput2 = document.getElementById('file-input-2');
+        const uploadZone1 = document.getElementById('upload-zone-1');
+        const uploadZone2 = document.getElementById('upload-zone-2');
+        const side1 = document.getElementById('side1');
+        const side2 = document.getElementById('side2');
+        const runTaskBtn = document.getElementById('run-task-btn');
+        const mainContainer = document.getElementById('main-container');
+
+        let file1 = null;
+        let file2 = null;
+
+        // --- EVENT LISTENERS ---
+        [uploadZone1, fileInput1].forEach(el => {
+            el.addEventListener('click', () => fileInput1.click());
+            el.addEventListener('dragover', (e) => { e.preventDefault(); el.classList.add('drag-over'); });
+            el.addEventListener('dragleave', (e) => el.classList.remove('drag-over'));
+            el.addEventListener('drop', (e) => handleFileDrop(e, 1));
+            fileInput1.onchange = (e) => handleFileSelect(e, 1);
+        });
+        
+        [uploadZone2, fileInput2].forEach(el => {
+            el.addEventListener('click', () => fileInput2.click());
+            el.addEventListener('dragover', (e) => { e.preventDefault(); el.classList.add('drag-over'); });
+            el.addEventListener('dragleave', (e) => el.classList.remove('drag-over'));
+            el.addEventListener('drop', (e) => handleFileDrop(e, 2));
+            fileInput2.onchange = (e) => handleFileSelect(e, 2);
+        });
+
+        runTaskBtn.addEventListener('click', runComparison);
+
+        // --- FUNCTIONS ---
+        function validateFileType(file) {
+            const allowedTypes = ['.pdf', '.docx', '.txt'];
+            const fileName = file.name.toLowerCase();
+            const fileExtension = fileName.substring(fileName.lastIndexOf('.'));
+            return allowedTypes.includes(fileExtension);
+        }
+
+        function handleFileDrop(event, side) {
+            event.preventDefault();
+            event.currentTarget.classList.remove('drag-over');
+            const files = event.dataTransfer.files;
+            if (files.length > 0) {
+                const file = files[0];
+                if (!validateFileType(file)) {
+            alert('Only PDF, DOCX and TXT files are supported. Please select a different file.');
+            return;
+        }
+                if(side === 1) file1 = file;
+                else file2 = file;
+                renderFileContent(file, side);
+            }
+        }
+
+        function handleFileSelect(event, side) {
+            const files = event.target.files;
+            if (files.length > 0) {
+                const file = files[0];
+                if (!validateFileType(file)) {
+                    alert('Only PDF, DOCX and TXT files are supported. Please select a different file.');
+                    event.target.value = ''; // Clear the input
+                    return;
+                }
+                if(side === 1) file1 = file;
+                else file2 = file;
+                renderFileContent(file, side);
+            }
+        }
+        
+        async function renderFileContent(file, side) {
+            const targetSide = (side === 1) ? side1 : side2;
+            const fileName = file.name.toLowerCase();
+            const fileExtension = fileName.substring(fileName.lastIndexOf('.'));
+            
+            try {
+                let textContent = '';
+                
+                if (fileExtension === '.txt') {
+                    // Handle TXT files
+                    textContent = await readTextFile(file);
+                } else if (fileExtension === '.docx') {
+                    // Handle DOCX files
+                    textContent = await readDocxFile(file);
+                } else if (fileExtension === '.pdf') {
+                    // Handle PDF files
+                    textContent = await readPdfFile(file);
+                }
+                
+                // Store converted text for sending to N8N
+                if (side === 1) {
+                    file1.convertedText = textContent;
+                } else {
+                    file2.convertedText = textContent;
+                }
+                
+                targetSide.innerHTML = `<div class="file-content-view">${escapeHtml(textContent)}</div>`;
+                checkRunButtonState();
+                
+            } catch (error) {
+                console.error('Error reading file:', error);
+                targetSide.innerHTML = `<div class="file-content-view" style="color: red;">Error reading file: ${error.message}</div>`;
+            }
+        }
+
+        async function readTextFile(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = (e) => reject(new Error('Unable to read TXT file'));
+                reader.readAsText(file);
+            });
+        }
+
+        async function readDocxFile(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    try {
+                        const arrayBuffer = e.target.result;
+                        const result = await mammoth.extractRawText({arrayBuffer: arrayBuffer});
+                        resolve(result.value);
+                    } catch (error) {
+                        reject(new Error('Unable to read DOCX file'));
+                    }
+                };
+                reader.onerror = (e) => reject(new Error('Unable to read DOCX file'));
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        async function readPdfFile(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    try {
+                        const arrayBuffer = e.target.result;
+                        const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+                        let textContent = '';
+                        
+                        for (let i = 1; i <= pdf.numPages; i++) {
+                            const page = await pdf.getPage(i);
+                            const content = await page.getTextContent();
+                            
+                            // Improved text extraction with better spacing
+                            let pageText = '';
+                            let lastY = null;
+                            
+                            for (let j = 0; j < content.items.length; j++) {
+                                const item = content.items[j];
+                                const currentY = item.transform[5];
+                                
+                                // Add line break only when Y position changes significantly (new line)
+                                if (lastY !== null && Math.abs(currentY - lastY) > 5) {
+                                    pageText += '\n';
+                                } else if (pageText && !pageText.endsWith(' ') && !item.str.startsWith(' ')) {
+                                    // Add space between words if needed
+                                    pageText += ' ';
+                                }
+                                
+                                pageText += item.str;
+                                lastY = currentY;
+                            }
+                            
+                            // Add page separator only if there's more content
+                            if (i < pdf.numPages && pageText.trim()) {
+                                textContent += pageText + '\n';
+                            } else {
+                                textContent += pageText;
+                            }
+                        }
+                        
+                        resolve(textContent.trim());
+                    } catch (error) {
+                        reject(new Error('Unable to read PDF file'));
+                    }
+                };
+                reader.onerror = (e) => reject(new Error('Unable to read PDF file'));
+                reader.readAsArrayBuffer(file);
+            });
+        }
+        
+        function checkRunButtonState() {
+            runTaskBtn.disabled = !(file1 && file2);
+        }
+
+        async function runComparison() {
+            if (!file1 || !file2) return;
+
+            showLoading(true);
+
+            const formData = new FormData();
+            
+            // Always send converted text as TXT files
+            const txtFile1 = new File([file1.convertedText || ''], 
+                file1.name.replace(/\.(pdf|docx)$/i, '.txt'), 
+                { type: 'text/plain' });
+            const txtFile2 = new File([file2.convertedText || ''], 
+                file2.name.replace(/\.(pdf|docx)$/i, '.txt'), 
+                { type: 'text/plain' });
+                
+            formData.append('file1', txtFile1);
+            formData.append('file2', txtFile2);
+
+            try {
+                const response = await fetch(N8N_WEBHOOK_URL, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Error from N8N server: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                
+                if (result.error) {
+                    throw new Error(result.message);
+                }
+
+                displayDiffResults(result);
+
+            } catch (error) {
+                alert(`An error occurred: ${error.message}. Please check N8N workflow and URL.`);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function displayDiffResults(data) {
+            const diffResult = data.diff_result || [];
+            let html1 = '';
+            let html2 = '';
+            
+            diffResult.forEach(diff => {
+                const escapedContent1 = escapeHtml(diff.content1);
+                const escapedContent2 = escapeHtml(diff.content2);
+                const lineNum1 = diff.displayLineNumber1 ? `<span class="line-number">${diff.displayLineNumber1}</span>` : '<span class="line-number"></span>';
+                const lineNum2 = diff.displayLineNumber2 ? `<span class="line-number">${diff.displayLineNumber2}</span>` : '<span class="line-number"></span>';
+
+                switch(diff.type) {
+                    case 'unchanged':
+                        html1 += `<div class="line-container">${lineNum1}<span class="line">${escapedContent1}</span></div>`;
+                        html2 += `<div class="line-container">${lineNum2}<span class="line">${escapedContent2}</span></div>`;
+                        break;
+                    case 'deleted':
+                        html1 += `<div class="line-container">${lineNum1}<span class="line deleted">${escapedContent1}</span></div>`;
+                        html2 += `<div class="line-container">${lineNum2}<span class="line empty"></span></div>`;
+                        break;
+                    case 'added':
+                        html1 += `<div class="line-container">${lineNum1}<span class="line empty"></span></div>`;
+                        html2 += `<div class="line-container">${lineNum2}<span class="line added">${escapedContent2}</span></div>`;
+                        break;
+                    case 'modified':
+                        // Check if inline diff is available from backend
+                        if (diff.inlineDiff && diff.inlineDiff.segments1 && diff.inlineDiff.segments2) {
+                            // Render with backend inline highlighting
+                            const inlineHtml1 = renderInlineSegments(diff.inlineDiff.segments1);
+                            const inlineHtml2 = renderInlineSegments(diff.inlineDiff.segments2);
+                            html1 += `<div class="line-container">${lineNum1}<span class="line modified-old">${inlineHtml1}</span></div>`;
+                            html2 += `<div class="line-container">${lineNum2}<span class="line modified-new">${inlineHtml2}</span></div>`;
+                        } else {
+                            // Use client-side word-level diff for better highlighting
+                            const wordDiff = performWordLevelDiff(diff.content1 || '', diff.content2 || '');
+                            const inlineHtml1 = renderInlineSegments(wordDiff.segments1);
+                            const inlineHtml2 = renderInlineSegments(wordDiff.segments2);
+                            html1 += `<div class="line-container">${lineNum1}<span class="line modified-old">${inlineHtml1}</span></div>`;
+                            html2 += `<div class="line-container">${lineNum2}<span class="line modified-new">${inlineHtml2}</span></div>`;
+                        }
+                        break;
+                }
+            });
+            
+            side1.innerHTML = `<div class="file-content-view">${html1}</div>`;
+            side2.innerHTML = `<div class="file-content-view">${html2}</div>`;
+            
+            // Remove animation classes after animation completes
+            setTimeout(() => {
+                const animatedElements1 = side1.querySelectorAll('.new-highlight');
+                const animatedElements2 = side2.querySelectorAll('.new-highlight');
+                animatedElements1.forEach(element => {
+                    element.classList.remove('new-highlight');
+                });
+                animatedElements2.forEach(element => {
+                    element.classList.remove('new-highlight');
+                });
+            }, 1000);
+        }
+
+        function showLoading(isLoading) {
+            let overlay = document.getElementById('loading-overlay');
+            if (isLoading && !overlay) {
+                overlay = document.createElement('div');
+                overlay.id = 'loading-overlay';
+                overlay.className = 'loading-overlay';
+                overlay.innerHTML = '<div class="spinner"></div>';
+                mainContainer.appendChild(overlay);
+            } else if (!isLoading && overlay) {
+                overlay.remove();
+            }
+        }
+
+        // Word-level diff algorithm
+        function performWordLevelDiff(text1, text2) {
+            if (!text1 && !text2) return { segments1: [], segments2: [] };
+            if (!text1) return { 
+                segments1: [], 
+                segments2: [{ type: 'added', text: text2 }] 
+            };
+            if (!text2) return { 
+                segments1: [{ type: 'deleted', text: text1 }], 
+                segments2: [] 
+            };
+
+            const words1 = text1.split(/(\s+)/);
+            const words2 = text2.split(/(\s+)/);
+            
+            const diff = diffWords(words1, words2);
+            
+            const segments1 = [];
+            const segments2 = [];
+            
+            diff.forEach(change => {
+                if (change.added) {
+                    segments2.push({ type: 'added', text: change.value });
+                } else if (change.removed) {
+                    segments1.push({ type: 'deleted', text: change.value });
+                } else {
+                    segments1.push({ type: 'unchanged', text: change.value });
+                    segments2.push({ type: 'unchanged', text: change.value });
+                }
+            });
+            
+            return { segments1, segments2 };
+        }
+
+        function diffWords(words1, words2) {
+            const m = words1.length;
+            const n = words2.length;
+            
+            // Create LCS matrix
+            const lcs = Array(m + 1).fill().map(() => Array(n + 1).fill(0));
+            
+            for (let i = 1; i <= m; i++) {
+                for (let j = 1; j <= n; j++) {
+                    if (words1[i - 1] === words2[j - 1]) {
+                        lcs[i][j] = lcs[i - 1][j - 1] + 1;
+                    } else {
+                        lcs[i][j] = Math.max(lcs[i - 1][j], lcs[i][j - 1]);
+                    }
+                }
+            }
+            
+            // Backtrack to find differences
+            const result = [];
+            let i = m, j = n;
+            
+            while (i > 0 || j > 0) {
+                if (i > 0 && j > 0 && words1[i - 1] === words2[j - 1]) {
+                    result.unshift({ value: words1[i - 1] });
+                    i--; j--;
+                } else if (j > 0 && (i === 0 || lcs[i][j - 1] >= lcs[i - 1][j])) {
+                    result.unshift({ value: words2[j - 1], added: true });
+                    j--;
+                } else if (i > 0) {
+                    result.unshift({ value: words1[i - 1], removed: true });
+                    i--;
+                }
+            }
+            
+            return result;
+        }
+
+        function renderInlineSegments(segments) {
+            if (!segments || !Array.isArray(segments)) return '';
+            
+            return segments.map(segment => {
+                const escapedText = escapeHtml(segment.text);
+                const borderClass = ' needs-border new-highlight';
+                switch(segment.type) {
+                    case 'unchanged':
+                        return escapedText;
+                    case 'deleted':
+                        return `<span class="inline-deleted${borderClass}">${escapedText}</span>`;
+                    case 'added':
+                        return `<span class="inline-added${borderClass}">${escapedText}</span>`;
+                    default:
+                        return escapedText;
+                }
+            }).join('');
+        }
+
+        function escapeHtml(text) {
+            if (text === null || text === undefined) return '';
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+    </script>
+
+</body>
+</html>
