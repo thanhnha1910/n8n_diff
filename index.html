@@ -76,9 +76,6 @@
         opacity: 1;
       }
 
-
-
-
       .main-container {
         width: 100%;
         max-width: 1200px;
@@ -192,22 +189,22 @@
         background-color: #fafafa;
         max-height: 100%;
         scroll-behavior: auto;
-        
+
         /* GPU Acceleration & Performance Optimizations */
         will-change: transform, scroll-position;
         transform: translateZ(0); /* Force GPU layer */
         contain: layout style paint; /* Isolate repaints */
         backface-visibility: hidden; /* Optimize 3D transforms */
         perspective: 1000px; /* Enable 3D context */
-        
+
         /* Smooth scrolling performance */
         -webkit-overflow-scrolling: touch; /* iOS momentum scrolling */
         scroll-snap-type: y proximity; /* Snap to content */
-        
+
         /* Optimize rendering */
         image-rendering: optimizeSpeed;
         text-rendering: optimizeSpeed;
-        
+
         /* Reduce reflow/repaint */
         position: relative;
         z-index: 1;
@@ -607,8 +604,6 @@
         box-shadow: inset 0 0 0 1px rgba(239, 68, 68, 0.2);
       }
 
-
-
       /* Enhanced correspondence highlighting */
       .line-container[data-has-correspondence="true"] {
         position: relative;
@@ -737,13 +732,13 @@
         scroll-behavior: auto;
         scroll-padding-top: 20px;
         scroll-padding-bottom: 20px;
-        
+
         /* Additional GPU optimizations for scrolling */
         transform: translate3d(0, 0, 0); /* Force hardware acceleration */
         -webkit-transform: translate3d(0, 0, 0);
         -moz-transform: translate3d(0, 0, 0);
         -ms-transform: translate3d(0, 0, 0);
-        
+
         /* Optimize scroll performance */
         -webkit-backface-visibility: hidden;
         -moz-backface-visibility: hidden;
@@ -1290,12 +1285,12 @@
   <body>
     <!-- Ultra-Fast Reading Controls -->
     <div class="reading-progress-bar" id="reading-progress-bar">
-      <div class="reading-progress-fill" id="reading-progress-fill" data-progress="0%"></div>
+      <div
+        class="reading-progress-fill"
+        id="reading-progress-fill"
+        data-progress="0%"
+      ></div>
     </div>
-
-
-
-
 
     <div class="main-container" id="main-container">
       <div class="header">
@@ -2577,7 +2572,7 @@
           let scrollHistory = [];
           let lastScrollTime = 0;
           let momentumTimer = null;
-          
+
           panel.addEventListener(
             "wheel",
             (e) => {
@@ -2585,22 +2580,26 @@
 
               const currentTime = Date.now();
               const delta = e.deltaY;
-              
+
               // Track scroll velocity for adaptive acceleration
               scrollHistory.push({ time: currentTime, delta: Math.abs(delta) });
-              
+
               // Keep only recent scroll events (last 200ms)
-              scrollHistory = scrollHistory.filter(event => currentTime - event.time < 200);
-              
+              scrollHistory = scrollHistory.filter(
+                (event) => currentTime - event.time < 200
+              );
+
               // Calculate adaptive multiplier based on scroll frequency and velocity
               let baseMultiplier = 10; // Increased from 2.5 to 10
               let adaptiveMultiplier = baseMultiplier;
-              
+
               if (scrollHistory.length > 3) {
                 // Fast consecutive scrolling - increase multiplier up to 25x
-                const avgVelocity = scrollHistory.reduce((sum, event) => sum + event.delta, 0) / scrollHistory.length;
+                const avgVelocity =
+                  scrollHistory.reduce((sum, event) => sum + event.delta, 0) /
+                  scrollHistory.length;
                 const scrollFrequency = scrollHistory.length / 0.2; // events per second
-                
+
                 if (avgVelocity > 50 && scrollFrequency > 10) {
                   adaptiveMultiplier = Math.min(25, baseMultiplier * 2.5);
                 } else if (avgVelocity > 30 && scrollFrequency > 5) {
@@ -2609,7 +2608,7 @@
                   adaptiveMultiplier = Math.min(15, baseMultiplier * 1.5);
                 }
               }
-              
+
               const scrollAmount = delta * adaptiveMultiplier;
 
               // Calculate new scroll position
@@ -2626,20 +2625,22 @@
                 ),
                 behavior: "auto",
               });
-              
+
               // Clear momentum timer
               if (momentumTimer) {
                 clearTimeout(momentumTimer);
               }
-              
+
               // Add momentum scrolling effect
               momentumTimer = setTimeout(() => {
                 if (scrollHistory.length > 2) {
-                  const lastDelta = scrollHistory[scrollHistory.length - 1].delta;
+                  const lastDelta =
+                    scrollHistory[scrollHistory.length - 1].delta;
                   const momentum = lastDelta * adaptiveMultiplier * 0.3;
-                  
+
                   if (momentum > 10) {
-                    const momentumScrollTop = panel.scrollTop + (delta > 0 ? momentum : -momentum);
+                    const momentumScrollTop =
+                      panel.scrollTop + (delta > 0 ? momentum : -momentum);
                     panel.scrollTo({
                       top: Math.max(
                         0,
@@ -2654,7 +2655,7 @@
                 }
                 scrollHistory = [];
               }, 100);
-              
+
               lastScrollTime = currentTime;
             },
             { passive: false }
@@ -2886,7 +2887,7 @@
       document.addEventListener("keydown", (e) => {
         if (smoothScrollManager.leftPanel && smoothScrollManager.rightPanel) {
           // Don't interfere with input fields
-          if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+          if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") {
             return;
           }
 
@@ -2900,7 +2901,9 @@
             // Space/Shift+Space for page navigation (like PDF readers)
             case " ":
               e.preventDefault();
-              const pageAmount = e.shiftKey ? -pageScrollAmount : pageScrollAmount;
+              const pageAmount = e.shiftKey
+                ? -pageScrollAmount
+                : pageScrollAmount;
               smoothScrollManager.leftPanel.scrollBy({
                 top: pageAmount,
                 behavior: "auto",
@@ -3052,8 +3055,6 @@
           }
         }
       });
-
-
     </script>
   </body>
 </html>
